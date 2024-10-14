@@ -579,12 +579,7 @@ fn get_module_and_handler_name<'a>(ctx: &Ctx, handler: &'a str) -> Result<(&'a s
 }
 
 fn get_task_root() -> String {
-    env::var(ENV_LAMBDA_TASK_ROOT).unwrap_or_else(|_| {
-        env::current_dir()
-            .ok()
-            .and_then(|path| path.into_os_string().into_string().ok())
-            .unwrap_or_else(|| "/".to_string())
-    })
+    env::var(ENV_LAMBDA_TASK_ROOT).unwrap_or_else(|_| "/".to_string())
 }
 
 fn get_header_value(headers: &HeaderMap, header: &HeaderName) -> StdResult<String, String> {

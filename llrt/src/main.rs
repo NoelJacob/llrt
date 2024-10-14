@@ -18,6 +18,7 @@ use minimal_tracer::MinimalTracer;
 use std::{
     env,
     error::Error,
+    fs,
     path::{Path, PathBuf},
     process::exit,
     sync::atomic::Ordering,
@@ -175,7 +176,11 @@ async fn start_cli(vm: &Vm) {
                 match ext {
                     ".cjs" | ".js" | ".mjs" => {
                         if file_exists {
-                            return vm.run_file(filename, true, global).await;
+                            let buf = fs::read(filename).unwrap_or_else(|err| {
+                                eprintln!("{err}");
+                                exit(1);
+                            });
+                            return vm.run(buf, true, global).await;
                         } else {
                             eprintln!("No such file: {}", arg);
                             exit(1);
@@ -183,7 +188,11 @@ async fn start_cli(vm: &Vm) {
                     },
                     _ => {
                         if file_exists {
-                            return vm.run_file(filename, true, false).await;
+                            let buf = fs::read(filename).unwrap_or_else(|err| {
+                                eprintln!("{err}");
+                                exit(1);
+                            });
+                            return vm.run(buf, true, false).await;
                         }
                         eprintln!("Unknown command: {}", arg);
                         usage();
@@ -193,7 +202,11 @@ async fn start_cli(vm: &Vm) {
             }
         }
     } else if let Some(filename) = get_js_path("index") {
-        vm.run_file(&filename, true, false).await;
+        let buf = fs::read(filename).unwrap_or_else(|err| {
+            eprintln!("{err}");
+            exit(1);
+        });
+        vm.run(buf, true, false).await;
     }
 }
 

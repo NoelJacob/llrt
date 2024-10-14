@@ -6,7 +6,6 @@ use crate::modules::{
     console::ConsoleModule,
     crypto::CryptoModule,
     events::EventsModule,
-    fs::{FsModule, FsPromisesModule},
     llrt::{hex::LlrtHexModule, uuid::LlrtUuidModule, xml::LlrtXmlModule},
     module::ModuleModule,
     net::NetModule,
@@ -68,8 +67,6 @@ impl Default for ModuleBuilder {
             .with_module(CryptoModule)
             .with_global(crate::modules::crypto::init)
             .with_global(crate::modules::util::init)
-            .with_module(FsPromisesModule)
-            .with_module(FsModule)
             .with_module(OsModule)
             .with_module(TimersModule)
             .with_module(EventsModule)

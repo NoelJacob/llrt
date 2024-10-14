@@ -8,7 +8,7 @@ mod headers;
 mod request;
 mod response;
 
-use std::{env, fs::File as StdFile, io, time::Duration};
+use std::{env, io, time::Duration};
 
 use bytes::Bytes;
 use http_body_util::Full;
@@ -76,17 +76,6 @@ pub static TLS_CONFIG: Lazy<io::Result<ClientConfig>> = Lazy::new(|| {
 
     for cert in TLS_SERVER_ROOTS.iter().cloned() {
         root_certificates.roots.push(cert)
-    }
-
-    if let Ok(extra_ca_certs) = env::var(environment::ENV_LLRT_EXTRA_CA_CERTS) {
-        if !extra_ca_certs.is_empty() {
-            let file = StdFile::open(extra_ca_certs)
-                .map_err(|_| io::Error::other("Failed to open extra CA certificates file"))?;
-            let mut reader = io::BufReader::new(file);
-            root_certificates.add_parsable_certificates(
-                rustls_pemfile::certs(&mut reader).filter_map(io::Result::ok),
-            );
-        }
     }
 
     let builder = ClientConfig::builder_with_provider(ring::default_provider().into());

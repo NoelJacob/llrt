@@ -7,7 +7,6 @@ use std::{
     ffi::CStr,
     fmt::Write,
     io,
-    path::{Path, PathBuf},
     process::exit,
     rc::Rc,
     result::Result as StdResult,
@@ -15,7 +14,7 @@ use std::{
 };
 
 use llrt_modules::{
-    path::{resolve_path, resolve_path_with_separator},
+    path::resolve_path_with_separator,
     timers::{self, poll_timers},
 };
 use llrt_utils::{bytes::ObjectBytes, error::ErrorExtensions, object::ObjectExt};
@@ -25,7 +24,7 @@ use rquickjs::{
     atom::PredefinedAtom,
     context::EvalOptions,
     function::Opt,
-    loader::{BuiltinLoader, FileResolver, Loader, ScriptLoader},
+    loader::{BuiltinLoader, Loader},
     module::Declared,
     object::Accessor,
     prelude::{Func, Rest},
@@ -118,10 +117,6 @@ pub struct CustomLoader;
 impl Loader for CustomLoader {
     fn load<'js>(&mut self, ctx: &Ctx<'js>, name: &str) -> Result<Module<'js, Declared>> {
         trace!("Loading module: {}", name);
-        if name.ends_with(".json") {
-            let source = std::fs::read_to_string(name)?;
-            return Module::declare(ctx.clone(), name, ["export default ", &source].concat());
-        }
 
         let ctx = ctx.clone();
         if let Some(bytes) = BYTECODE_CACHE.get(name) {
@@ -132,18 +127,7 @@ impl Loader for CustomLoader {
 
             return load_bytecode_module(ctx, name, bytes);
         }
-
-        let path = PathBuf::from(name);
-        let mut bytes: &[u8] = &std::fs::read(path)?;
-
-        if name.ends_with(".lrt") {
-            trace!("Loading binary module: {}", name);
-            return load_bytecode_module(ctx, name, bytes);
-        }
-        if bytes.starts_with(b"#!") {
-            bytes = bytes.splitn(2, |&c| c == b'\n').nth(1).unwrap_or(bytes);
-        }
-        Module::declare(ctx, name, bytes)
+        Err(Error::new_loading(name))
     }
 }
 
@@ -301,41 +285,14 @@ impl Vm {
             .fill(&mut [0; 8])
             .expect("Failed to initialize SystemRandom");
 
-        let mut file_resolver = FileResolver::default();
         let custom_resolver = CustomResolver;
-        let mut paths: Vec<&str> = Vec::with_capacity(10);
-
-        paths.push(".");
-
-        let task_root = env::var(Self::ENV_LAMBDA_TASK_ROOT).unwrap_or_else(|_| String::from(""));
-        let task_root = task_root.as_str();
-        if cfg!(debug_assertions) {
-            paths.push("bundle");
-        } else {
-            paths.push("/opt");
-        }
-
-        if !task_root.is_empty() {
-            paths.push(task_root);
-        }
-
-        for path in paths.iter() {
-            file_resolver.add_path(*path);
-        }
 
         let (builtin_resolver, module_loader, module_names, init_globals) =
             vm_options.module_builder.build();
 
-        let resolver = (builtin_resolver, custom_resolver, file_resolver);
+        let resolver = (builtin_resolver, custom_resolver);
 
-        let loader = LoaderContainer::new((
-            module_loader,
-            CustomLoader,
-            BuiltinLoader::default(),
-            ScriptLoader::default()
-                .with_extension("mjs")
-                .with_extension("cjs"),
-        ));
+        let loader = LoaderContainer::new((module_loader, CustomLoader, BuiltinLoader::default()));
 
         let runtime = AsyncRuntime::new()?;
         runtime.set_max_stack_size(vm_options.max_stack_size).await;
@@ -377,17 +334,6 @@ impl Vm {
                 }
             })
             .await;
-    }
-
-    pub async fn run_file(&self, filename: &Path, strict: bool, global: bool) {
-        let source = [
-            r#"try{require(""#,
-            &filename.to_string_lossy(),
-            r#"")}catch(e){console.error(e);process.exit(1)}"#,
-        ]
-        .concat();
-
-        self.run(source, strict, global).await;
     }
 
     pub async fn run<S: Into<Vec<u8>> + Send>(&self, source: S, strict: bool, global: bool) {
@@ -545,8 +491,7 @@ fn init(ctx: &Ctx<'_>, module_names: HashSet<&'static str>) -> Result<()> {
                 specifier
             } else {
                 let module_name = get_script_or_module_name(ctx.clone());
-                let abs_path = resolve_path([module_name].iter());
-                require_resolve(&ctx, &specifier, &abs_path, false)?
+                require_resolve(&ctx, &specifier, &module_name, false)?
             };
 
             let import_name: Rc<str> = import_name.into();
@@ -558,13 +503,6 @@ fn init(ctx: &Ctx<'_>, module_names: HashSet<&'static str>) -> Result<()> {
                 require_cache.get::<_, Option<Value>>(import_name.as_ref())?
             {
                 return Ok(cached_value);
-            }
-
-            if import_name.ends_with(".json") {
-                let source = std::fs::read_to_string(import_name.as_ref())?;
-                let value = json_parse(&ctx, source)?;
-                require_cache.set(import_name.as_ref(), value.clone())?;
-                return Ok(value);
             }
 
             let mut map = require_in_progress.lock().unwrap();
