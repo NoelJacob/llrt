@@ -341,6 +341,7 @@ impl Vm {
         let runtime = AsyncRuntime::new()?;
         runtime.set_max_stack_size(vm_options.max_stack_size).await;
         runtime.set_gc_threshold(vm_options.gc_threshold_mb).await;
+        // TODO only have a single loader and resolver for modules and bytecode
         runtime.set_loader(resolver, loader).await;
 
         let ctx = AsyncContext::full(&runtime).await?;
@@ -380,6 +381,7 @@ impl Vm {
             .await;
     }
 
+    // TODO remove this
     pub async fn run_file(&self, filename: &Path, strict: bool, global: bool) {
         let source = [
             r#"try{require(""#,
@@ -545,6 +547,7 @@ fn init(ctx: &Ctx<'_>, module_names: HashSet<&'static str>) -> Result<()> {
             let import_name = if module_names.contains(specifier.as_str()) {
                 specifier
             } else {
+                // TODO only have bytecode check
                 let module_name = get_script_or_module_name(ctx.clone());
                 let abs_path = resolve_path([module_name].iter());
                 require_resolve(&ctx, &specifier, &abs_path, false)?

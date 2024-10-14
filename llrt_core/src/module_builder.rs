@@ -26,6 +26,7 @@ use rquickjs::{
     Ctx, Result,
 };
 
+// TODO replace with BuiltinResolver without fs
 #[derive(Debug, Default)]
 pub struct ModuleResolver {
     builtin_resolver: BuiltinResolver,
@@ -65,11 +66,12 @@ pub struct ModuleBuilder {
 impl Default for ModuleBuilder {
     fn default() -> Self {
         Self::new()
+            // TODO remove fs, childProcess or more
             .with_module(CryptoModule)
             .with_global(crate::modules::crypto::init)
             .with_global(crate::modules::util::init)
-            .with_module(FsPromisesModule)
-            .with_module(FsModule)
+            // .with_module(FsPromisesModule)
+            // .with_module(FsModule)
             .with_module(OsModule)
             .with_module(TimersModule)
             .with_module(EventsModule)
@@ -82,7 +84,7 @@ impl Default for ModuleBuilder {
             .with_module(PathModule)
             .with_module(BufferModule)
             .with_global(crate::modules::buffer::init)
-            .with_module(ChildProcessModule)
+            // .with_module(ChildProcessModule)
             .with_module(UtilModule)
             .with_module(ProcessModule)
             .with_global(crate::modules::process::init)
